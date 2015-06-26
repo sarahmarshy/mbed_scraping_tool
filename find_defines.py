@@ -18,12 +18,10 @@ def find_macros(elf, dwarfinfo):
     macros = macro_section.get_macros(elf,dwarfinfo)
 
     for string in macros:
-        #if string:
-            match = re.match('^(?!_)(\w+) (.+)$', string)
-            if 'FTM_CnSC_REG' in string:
-                print "HERE"
-            if match:
-                yield (match.group(1),(match.group(2)))
+        match = re.match('^(?!_)(\w+) (.+)$', string)
+        if match:
+            yield (match.group(1),(match.group(2)))
+
 
 def replace_references(d,v):
     try:
@@ -51,8 +49,13 @@ def find_defines(*filenames):
     defines = chain.from_iterable(find_defines_in_file(filename) for filename in filenames)
     d = dict(defines)
     for k,v in d.items():
-        d[k] = replace_references(d,v)
+        try:
+            d[k] = replace_references(d,v)
+        except:
+            pass
     return d
 
 
-print find_defines(*[os.path.join("C:\\Users\\sarmar01\\Documents\\obj_files",f) for f in os.listdir("C:\\Users\\sarmar01\\Documents\\obj_files")])
+for k,v in find_defines(*[os.path.join("C:\\Users\\sarmar01\\Documents\\obj_files",f) for f in os.listdir("C:\\Users\\sarmar01\\Documents\\obj_files")]).items():
+    #if isinstance(v, int):
+        print k, v
