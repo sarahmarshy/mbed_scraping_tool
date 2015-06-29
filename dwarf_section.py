@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import re
+from os import path
 from itertools import chain
 from macro_section import find_macros
 
@@ -8,11 +9,11 @@ from macro_section import find_macros
 def find_enums(elf, dwarf=None):
     dwarf = dwarf or elf.get_dwarf_info(False)
 
-    for CU in dwarf.iter_CUs():
-        for DIE in CU.iter_DIEs():
-            if DIE.tag == 'DW_TAG_enumerator':
-                yield (DIE.attributes['DW_AT_name'].value, 
-                       DIE.attributes['DW_AT_const_value'].value)
+    for cu in dwarf.iter_CUs():
+        for die in cu.iter_DIEs():
+            if die.tag == 'DW_TAG_enumerator':
+                yield (die.attributes['DW_AT_name'].value, 
+                       die.attributes['DW_AT_const_value'].value)
 
 def replace_references(d, v):
     try:
@@ -47,24 +48,49 @@ def find_constants(elf, dwarf=None):
     return chain(find_defines(elf, dwarf),
                  find_enums(elf, dwarf))
 
-def find_variables(elf, dwarf=None):
+def variable_types(cu, die):
+    while 'DW_AT_type' in die.attributes:
+        die = type(die)(cu, die.stream, die.attributes['DW_AT_type'].value)
+
+        if 'DW_AT_name' in die.attributes:
+            yield die.attributes['DW_AT_name'].value
+
+def find_types(elf, dwarf=None, type=None):
+    dwarf = dwarf or elf.get_dwarf_info(False)
+    types = set()
+
+    for cu in dwarf.iter_CUs():
+        for die in cu.iter_DIEs():
+            if die.tag == 'DW_TAG_variable':
+                for type in variable_types(cu, die):
+                    types.add(type)
+
+    return types
+
+def find_variables(elf, dwarf=None, type=None):
     dwarf = dwarf or elf.get_dwarf_info(False)
 
-    for CU in dwarf.iter_CUs():
-        for DIE in CU.iter_DIEs():
-            if DIE.tag == 'DW_TAG_variable' and 'DW_AT_decl_line' in DIE.attributes:
-                compile_unit = CU.get_top_DIE()
-                assert compile_unit.tag == 'DW_TAG_compile_unit'
-
+    for cu in dwarf.iter_CUs():
+        for die in cu.iter_DIEs():
+            if (die.tag == 'DW_TAG_variable' and
+                'DW_AT_decl_line' in die.attributes and
+                'DW_AT_decl_file' in die.attributes):
                 for attr in 'DW_AT_name', 'DW_AT_linkage_name':
-                    if attr in DIE.attributes:
-                        name = DIE.attributes[attr].value
+                    if attr in die.attributes:
+                        name = die.attributes[attr].value
                         break
                 else:
                     assert False, "No name found!"
 
-                yield (name, compile_unit.get_full_path(),
-                       DIE.attributes['DW_AT_decl_line'].value)
+                line_program = dwarf.line_program_for_CU(cu)
+                file_entry = line_program['file_entry'][
+                        die.attributes['DW_AT_decl_file'].value-1]
+                dir_entry = line_program['include_directory'][
+                        file_entry.dir_index-1]
+                file = path.join(dir_entry, file_entry.name)
+
+                if not type or any(t == type for t in variable_types(cu, die)):
+                    yield (name, file, die.attributes['DW_AT_decl_line'].value)
 
 if __name__=="__main__":
     from elftools.elf.elffile import ELFFile
@@ -73,8 +99,17 @@ if __name__=="__main__":
     with open(sys.argv[1], 'rb') as file:
         elf = ELFFile(file)
 
+        print "Constants:"
         for k, v in find_constants(elf):
             print '%s = %s' % (k, v)
+        print
 
+        print "Types:"
+        for k in find_types(elf):
+            print k
+        print
+
+        print "Variables:"
         for k, f, l in find_variables(elf):
             print '%s = %s:%s' %  (k, f, l)
+        print
