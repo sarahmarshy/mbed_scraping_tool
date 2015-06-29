@@ -88,7 +88,7 @@ def parse_macro_sections(elf, dwarf):
             if section.name == '.debug_macro')
    
 
-def get_macros(elf, dwarf=None):
+def find_macros(elf, dwarf=None):
     dwarf = dwarf or elf.get_dwarf_info(False)
 
     for section in parse_macro_sections(elf, dwarf):
