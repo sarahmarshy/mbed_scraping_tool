@@ -52,12 +52,18 @@ def find_variables(elf, dwarf=None):
 
     for CU in dwarf.iter_CUs():
         for DIE in CU.iter_DIEs():
-            if DIE.tag == 'DW_TAG_variable':
+            if DIE.tag == 'DW_TAG_variable' and 'DW_AT_decl_line' in DIE.attributes:
                 compile_unit = CU.get_top_DIE()
                 assert compile_unit.tag == 'DW_TAG_compile_unit'
 
-                yield (DIE.attributes['DW_AT_name'].value, 
-                       compile_unit.get_full_path(),
+                for attr in 'DW_AT_name', 'DW_AT_linkage_name':
+                    if attr in DIE.attributes:
+                        name = DIE.attributes[attr].value
+                        break
+                else:
+                    assert False, "No name found!"
+
+                yield (name, compile_unit.get_full_path(),
                        DIE.attributes['DW_AT_decl_line'].value)
 
 if __name__=="__main__":
