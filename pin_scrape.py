@@ -13,10 +13,11 @@ def extract_pins(lines, lineno):
         if ";" in line:
             return pins
         else:
-            regex = "\s*{(\w+)\s*,\s*(\w+)\s*,\s*(\d+)}\s*,"
-            m = re.search(regex,line)
-            if m:
-                pins.append((m.group(1),m.group(2),m.group(3)))
+            regex = "{\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*}"
+            match= re.findall(regex,line)
+            if match:
+                for m in match:
+                    pins.append(m)
 
 def find_pinmaps(filename,linenos):
     with open(filename, "r") as file:
@@ -33,14 +34,15 @@ def parse_directory_for_pins(target, dirpath, type):
     pin_dict = {}
     files = {}
     for filename in os.listdir(dirpath):
-        with open(os.path.join(dirpath,filename), "rb") as file:
-            elf = ELFFile(file)
-            variables = find_variables(elf, type = type)
-            for (name, filename, line) in variables:
-                if filename in files:
-                    files[filename].append(line)
-                else:
-                    files[filename] = [line]
+        if ".o" in filename:
+            with open(os.path.join(dirpath,filename), "rb") as file:
+                elf = ELFFile(file)
+                variables = find_variables(elf, type = type)
+                for (name, filename, line) in variables:
+                    if filename in files:
+                        files[filename].append(line)
+                    else:
+                        files[filename] = [line]
 
     pin_dict[target] = {}
     for filename in files.keys():
