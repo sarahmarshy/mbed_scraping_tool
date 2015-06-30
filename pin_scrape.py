@@ -37,6 +37,8 @@ def parse_directory_for_pins(target, dirpath, type):
         if ".o" in filename:
             with open(os.path.join(dirpath,filename), "rb") as file:
                 elf = ELFFile(file)
+                if not elf.has_dwarf_info():
+                    continue
                 variables = find_variables(elf, type = type)
                 for (name, filename, line) in variables:
                     if filename in files:
